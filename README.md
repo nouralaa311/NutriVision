@@ -49,7 +49,7 @@ Most food-tracking apps stop at "here's a database, search for your meal." Nutri
 | Top-5 Accuracy (test set) | **94.70%** |
 | Validation Accuracy (best checkpoint) | 80.63% |
 | Classes | 101 (Food-101) |
-| Dataset size	~100,000 images (1,000 per class) |
+| Dataset size |	~100,000 images (1,000 per class) |
 
 **The path to get here matters as much as the number itself:**
 
