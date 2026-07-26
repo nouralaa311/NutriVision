@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NutriVision — Scan Result</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#101109; --panel:#181a12; --panel-2:#1f2216; --line:#2c2f21;
+    --saffron:#F2A93B; --scan:#63E6D4; --ink:#F4F1E6; --muted:#9C9A85;
+    --faint:#5c5b4c; --danger:#E8694A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(242,169,59,0.10), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(99,230,212,0.07), transparent 55%),
+      var(--bg);
+    color:var(--ink); font-family:'Inter',sans-serif; min-height:100vh;
+    padding:48px 20px 80px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px;margin:0 auto;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:36px;}
+  .brand{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;letter-spacing:0.02em;}
+  .brand-mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,var(--saffron),var(--scan));flex-shrink:0;}
+  .status-pill{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.04em;color:var(--scan);background:rgba(99,230,212,0.08);border:1px solid rgba(99,230,212,0.25);padding:6px 12px;border-radius:100px;display:flex;align-items:center;gap:7px;}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--scan);box-shadow:0 0 8px var(--scan);animation:pulse 1.8s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+
+  .hero{display:grid;grid-template-columns:340px 1fr;gap:0;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-bottom:22px;}
+  @media(max-width:760px){.hero{grid-template-columns:1fr;}}
+
+  .scan-frame{position:relative;aspect-ratio:1/1;background:#0c0d08;overflow:hidden;border-right:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  @media(max-width:760px){.scan-frame{border-right:none;border-bottom:1px solid var(--line);}}
+  .scan-frame img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(1.05) contrast(1.02);}
+  .drop-hint{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);text-align:center;padding:20px;}
+  .corner{position:absolute;width:22px;height:22px;border-color:var(--saffron);opacity:0.9;pointer-events:none;}
+  .corner.tl{top:14px;left:14px;border-top:2px solid;border-left:2px solid;}
+  .corner.tr{top:14px;right:14px;border-top:2px solid;border-right:2px solid;}
+  .corner.bl{bottom:14px;left:14px;border-bottom:2px solid;border-left:2px solid;}
+  .corner.br{bottom:14px;right:14px;border-bottom:2px solid;border-right:2px solid;}
+  .scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--scan),transparent);box-shadow:0 0 12px 2px var(--scan);animation:sweep 3.2s ease-in-out infinite;opacity:0;pointer-events:none;}
+  .scanline.active{opacity:0.85;}
+  @keyframes sweep{0%{top:6%;}50%{top:92%;}100%{top:6%;}}
+  .scan-tag{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:var(--bg);background:var(--saffron);padding:4px 10px;border-radius:5px;font-weight:600;display:none;}
+  .scan-tag.active{display:block;}
+  #fileInput{display:none;}
+
+  .hero-info{padding:30px 32px;display:flex;flex-direction:column;justify-content:center;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:10px;}
+  .food-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:clamp(24px,4vw,40px);line-height:1.05;margin:0 0 14px;}
+  .confidence-row{display:flex;align-items:center;gap:14px;margin-bottom:22px;}
+  .conf-bar-track{flex:1;height:6px;border-radius:100px;background:var(--line);overflow:hidden;max-width:220px;}
+  .conf-bar-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--saffron),var(--scan));width:0%;transition:width .6s ease;}
+  .conf-value{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--scan);font-weight:600;}
+  .alt-list{display:flex;flex-direction:column;gap:7px;}
+  .alt-row{display:flex;align-items:center;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--faint);}
+  .alt-row .rank{color:var(--muted);width:16px;}
+  .alt-row .name{flex:1;color:var(--muted);}
+  .alt-row .pct{color:var(--faint);}
+
+  .section-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin:0 0 14px 4px;}
+  .macro-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
+  @media(max-width:700px){.macro-grid{grid-template-columns:repeat(2,1fr);}}
+  .macro-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 18px;display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .macro-card .ring{position:relative;width:76px;height:76px;}
+  .macro-card svg{transform:rotate(-90deg);}
+  .macro-card .ring-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14px;}
+  .macro-card .label{font-size:12.5px;color:var(--muted);font-weight:500;}
+  .macro-card .grams{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint);}
+  .kcal-card{background:linear-gradient(135deg, rgba(242,169,59,0.10), rgba(99,230,212,0.05));border:1px solid rgba(242,169,59,0.28);}
+  .kcal-card .ring-val{color:var(--saffron);font-size:15px;}
+
+  .lower{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:760px){.lower{grid-template-columns:1fr;}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;}
+  .panel h3{font-family:'Space Grotesk',sans-serif;font-size:15px;margin:0 0 14px;font-weight:600;}
+  .chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .chip{font-family:'Inter',sans-serif;font-size:12.5px;font-weight:500;padding:7px 14px;border-radius:100px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);cursor:pointer;transition:all .15s ease;}
+  .chip.active{background:var(--saffron);border-color:var(--saffron);color:#191a10;}
+  .rec-line{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.55;color:var(--ink);padding:11px 0;border-top:1px solid var(--line);}
+  .rec-line:first-of-type{border-top:none;padding-top:0;}
+  .rec-icon{flex-shrink:0;font-size:14px;margin-top:1px;}
+  .allergy-list{display:flex;flex-direction:column;gap:8px;}
+  .allergy-item{display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:10px 12px;border-radius:9px;background:var(--panel-2);border:1px solid var(--line);}
+  .allergy-item.flagged{border-color:rgba(232,105,74,0.4);background:rgba(232,105,74,0.07);}
+  .allergy-item .tag{font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px 8px;border-radius:5px;background:var(--line);color:var(--muted);}
+  .allergy-item.flagged .tag{background:var(--danger);color:#fff;}
+
+  .placeholder{opacity:0.5;filter:blur(2px);pointer-events:none;}
+  footer{text-align:center;margin-top:34px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--faint);letter-spacing:0.04em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="brand"><div class="brand-mark"></div>NutriVision</div>
+    <div class="status-pill"><span class="dot"></span><span id="statusText">MODEL: RESNET50-FT · READY</span></div>
+  </div>
+
+  <div class="hero">
+    <div class="scan-frame" id="dropZone">
+      <img id="previewImg" style="display:none;" alt="Scanned dish" />
+      <div class="drop-hint" id="dropHint">Click to upload<br>a food photo</div>
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <div class="scanline" id="scanline"></div>
+      <div class="scan-tag" id="scanTag">ANALYZING</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*">
+    <div class="hero-info">
+      <div class="eyebrow">Detected dish</div>
+      <h1 class="food-name" id="foodName">Awaiting image…</h1>
+      <div class="confidence-row">
+        <div class="conf-bar-track"><div class="conf-bar-fill" id="confBar"></div></div>
+        <span class="conf-value" id="confValue">—</span>
+      </div>
+      <div class="alt-list" id="altList"></div>
+    </div>
+  </div>
+
+  <div class="section-label">Nutrition — per 100g</div>
+  <div class="macro-grid" id="macroGrid">
+    <div class="macro-card kcal-card">
+      <div class="ring"><svg width="76" height="76" viewBox="0 0 76 76">
+        <circle cx="38" cy="38" r="32" fill="none" stroke="#2c2f21" stroke-width="7"/>
+        <circle id="ringKcal" cx="38" cy="38" r="32" fill="none" stroke="#F2A93B" stroke-width="7" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201"/>
+      </svg><div class="ring-val" id="valKcal">0</div></div>
+      <div class="label">Calories</div><div class="grams">kcal / 100g</div>
+    </div>
+    <div class="macro-card">
+      <div class="ring"><svg width="76" height="76" viewBox="0 0 76 76">
+        <circle cx="38" cy="38" r="32" fill="none" stroke="#2c2f21" stroke-width="7"/>
+        <circle id="ringProtein" cx="38" cy="38" r="32" fill="none" stroke="#63E6D4" stroke-width="7" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201"/>
+      </svg><div class="ring-val" id="valProtein">0%</div></div>
+      <div class="label">Protein</div><div class="grams" id="gProtein">0g</div>
+    </div>
+    <div class="macro-card">
+      <div class="ring"><svg width="76" height="76" viewBox="0 0 76 76">
+        <circle cx="38" cy="38" r="32" fill="none" stroke="#2c2f21" stroke-width="7"/>
+        <circle id="ringCarbs" cx="38" cy="38" r="32" fill="none" stroke="#E8B84A" stroke-width="7" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201"/>
+      </svg><div class="ring-val" id="valCarbs">0%</div></div>
+      <div class="label">Carbs</div><div class="grams" id="gCarbs">0g</div>
+    </div>
+    <div class="macro-card">
+      <div class="ring"><svg width="76" height="76" viewBox="0 0 76 76">
+        <circle cx="38" cy="38" r="32" fill="none" stroke="#2c2f21" stroke-width="7"/>
+        <circle id="ringFat" cx="38" cy="38" r="32" fill="none" stroke="#E8694A" stroke-width="7" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201"/>
+      </svg><div class="ring-val" id="valFat">0%</div></div>
+      <div class="label">Fat</div><div class="grams" id="gFat">0g</div>
+    </div>
+  </div>
+
+  <div class="lower">
+    <div class="panel">
+      <h3>Recommendation</h3>
+      <div class="chip-row" id="goalChips">
+        <div class="chip active" data-goal="maintain">Maintain</div>
+        <div class="chip" data-goal="lose_weight">Lose weight</div>
+        <div class="chip" data-goal="gain_muscle">Gain muscle</div>
+      </div>
+      <div id="recBody"><div class="rec-line"><span class="rec-icon">ℹ️</span><span>Upload a photo to see a recommendation.</span></div></div>
+    </div>
+    <div class="panel">
+      <h3>Allergy check</h3>
+      <div class="allergy-list" id="allergyList">
+        <div class="allergy-item"><span>Shellfish</span><span class="tag">—</span></div>
+        <div class="allergy-item"><span>Dairy</span><span class="tag">—</span></div>
+        <div class="allergy-item"><span>Nuts</span><span class="tag">—</span></div>
+        <div class="allergy-item"><span>Gluten</span><span class="tag">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>NUTRIVISION · FOOD-101 · 101 CLASSES · TOP-1 80.8% / TOP-5 94.7%</footer>
+</div>
+
+<script>
+  const dropZone   = document.getElementById('dropZone');
+  const fileInput  = document.getElementById('fileInput');
+  const previewImg = document.getElementById('previewImg');
+  const dropHint   = document.getElementById('dropHint');
+  const scanline   = document.getElementById('scanline');
+  const scanTag    = document.getElementById('scanTag');
+  const statusText = document.getElementById('statusText');
+
+  let currentNutrition = null; // holds last prediction for goal-switching
+
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    previewImg.src = URL.createObjectURL(file);
+    previewImg.style.display = 'block';
+    dropHint.style.display = 'none';
+    scanline.classList.add('active');
+    scanTag.classList.add('active');
+    statusText.textContent = 'MODEL: RESNET50-FT · ANALYZING…';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/predict', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Prediction failed');
+      const data = await res.json();
+      renderResult(data);
+      statusText.textContent = 'MODEL: RESNET50-FT · LIVE';
+    } catch (err) {
+      statusText.textContent = 'ERROR: ' + err.message;
+    } finally {
+      scanline.classList.remove('active');
+      scanTag.classList.remove('active');
+    }
+  });
+
+  function renderResult(data) {
+    currentNutrition = data;
+
+    document.getElementById('foodName').textContent = data.predicted_class.replace(/_/g, ' ');
+    document.getElementById('confBar').style.width = data.confidence + '%';
+    document.getElementById('confValue').textContent = data.confidence.toFixed(1) + '%';
+
+    const altList = document.getElementById('altList');
+    altList.innerHTML = data.top5.slice(1, 3).map((item, i) => `
+      <div class="alt-row">
+        <span class="rank">0${i + 2}</span>
+        <span class="name">${item.class}</span>
+        <span class="pct">${item.confidence.toFixed(1)}%</span>
+      </div>`).join('');
+
+    const n = data.nutrition;
+    const kcalFromMacros = n.protein_g * 4 + n.carbs_g * 4 + n.fat_g * 9;
+    const proteinPct = kcalFromMacros ? Math.round((n.protein_g * 4 / kcalFromMacros) * 100) : 0;
+    const carbsPct   = kcalFromMacros ? Math.round((n.carbs_g * 4 / kcalFromMacros) * 100) : 0;
+    const fatPct     = kcalFromMacros ? Math.round((n.fat_g * 9 / kcalFromMacros) * 100) : 0;
+
+    setRing('ringKcal', 'valKcal', Math.min(n.calories_kcal / 500, 1), n.calories_kcal.toFixed(0));
+    setRing('ringProtein', 'valProtein', proteinPct / 100, proteinPct + '%');
+    setRing('ringCarbs', 'valCarbs', carbsPct / 100, carbsPct + '%');
+    setRing('ringFat', 'valFat', fatPct / 100, fatPct + '%');
+    document.getElementById('gProtein').textContent = n.protein_g + 'g';
+    document.getElementById('gCarbs').textContent = n.carbs_g + 'g';
+    document.getElementById('gFat').textContent = n.fat_g + 'g';
+
+    renderAllergies(data.allergy_flags);
+    renderRecommendation(document.querySelector('#goalChips .chip.active').dataset.goal);
+  }
+
+  function setRing(circleId, labelId, fraction, labelText) {
+    const circle = document.getElementById(circleId);
+    const circumference = 201;
+    circle.style.strokeDashoffset = circumference * (1 - Math.max(0, Math.min(fraction, 1)));
+    document.getElementById(labelId).textContent = labelText;
+  }
+
+  const ALLERGY_LABELS = { shellfish: 'Shellfish', dairy: 'Dairy', nuts: 'Nuts', gluten: 'Gluten' };
+
+  function renderAllergies(flags) {
+    const list = document.getElementById('allergyList');
+    list.innerHTML = Object.entries(ALLERGY_LABELS).map(([key, label]) => {
+      const flagged = flags.includes(key);
+      return `<div class="allergy-item ${flagged ? 'flagged' : ''}">
+        <span>${label}</span><span class="tag">${flagged ? 'FLAGGED' : 'CLEAR'}</span>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('goalChips').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    document.querySelectorAll('#goalChips .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    renderRecommendation(chip.dataset.goal);
+  });
+
+  function renderRecommendation(goal) {
+    const body = document.getElementById('recBody');
+    if (!currentNutrition) {
+      body.innerHTML = `<div class="rec-line"><span class="rec-icon">ℹ️</span><span>Upload a photo to see a recommendation.</span></div>`;
+      return;
+    }
+    const n = currentNutrition.nutrition;
+    let lines = [];
+
+    if (goal === 'lose_weight') {
+      if (n.calories_kcal > 300) lines.push(['🔴', `Relatively high calories (${n.calories_kcal} kcal/100g) for a weight-loss goal — consider a smaller portion.`]);
+      else if (n.calories_kcal > 200) lines.push(['🟡', `Moderate calories (${n.calories_kcal} kcal/100g) — fine in a reasonable portion.`]);
+      else lines.push(['🟢', `Low calories (${n.calories_kcal} kcal/100g) — a good choice for your goal.`]);
+    } else if (goal === 'gain_muscle') {
+      if (n.protein_g >= 20) lines.push(['🟢', `High protein (${n.protein_g}g/100g) — great for building muscle.`]);
+      else if (n.protein_g >= 10) lines.push(['🟡', `Moderate protein (${n.protein_g}g/100g) — consider adding another protein source.`]);
+      else lines.push(['🔴', `Low protein (${n.protein_g}g/100g) — not the best choice for muscle-building alone.`]);
+    } else {
+      lines.push(['ℹ️', `${n.calories_kcal} kcal · ${n.protein_g}g protein · ${n.carbs_g}g carbs · ${n.fat_g}g fat per 100g.`]);
+    }
+
+    if (currentNutrition.allergy_flags.length > 0) {
+      lines.push(['⚠️', `Contains possible allergens: ${currentNutrition.allergy_flags.join(', ')}.`]);
+    }
+
+    body.innerHTML = lines.map(([icon, text]) => `<div class="rec-line"><span class="rec-icon">${icon}</span><span>${text}</span></div>`).join('');
+  }
+</script>
+</body>
+</html>
