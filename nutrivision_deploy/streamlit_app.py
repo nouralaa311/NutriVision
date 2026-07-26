@@ -11,6 +11,7 @@ Requires in the same folder:
 
 import base64
 import io
+import os
 
 import pandas as pd
 import streamlit as st
@@ -23,8 +24,9 @@ from torchvision import models, transforms
 # =====================================================
 # Config
 # =====================================================
-MODEL_PATH = "best_model_resnet50_finetune.pth"
-NUTRITION_CSV = "food101_nutrition.csv"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "best_model_resnet50_finetune.pth")
+NUTRITION_CSV = os.path.join(BASE_DIR, "food101_nutrition.csv")
 IMG_SIZE = 224
 
 CLASS_NAMES = sorted([
