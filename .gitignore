@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local runtime files
+*.log
+*.sqlite3
+.ipynb_checkpoints/
+
+# Model weights and checkpoints
+*.pth
+*.pt
+checkpoint*.pth
+checkpoint*.pt
+
+# Environment files
+.env
+.env.*

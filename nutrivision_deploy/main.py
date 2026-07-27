@@ -15,6 +15,7 @@ Requires in the same folder:
 
 import io
 import os
+from typing import Optional
 
 import pandas as pd
 import torch
@@ -34,6 +35,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "best_model_resnet50_finetune.pth")
 NUTRITION_CSV = os.path.join(BASE_DIR, "food101_nutrition.csv")
 IMG_SIZE = 224
+MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 
 # Food-101 class names (alphabetical order - matches torchvision.datasets.ImageFolder's
 # sorting, which is what the model was trained against). Keep this list in sync if you
@@ -96,6 +98,7 @@ def load_nutrition():
 
 model = None
 nutrition_df = None
+startup_error: Optional[str] = None
 
 preprocess = transforms.Compose([
     transforms.Resize((IMG_SIZE, IMG_SIZE)),
@@ -118,9 +121,18 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
-    global model, nutrition_df
-    model = load_model()
-    nutrition_df = load_nutrition()
+    global model, nutrition_df, startup_error
+    startup_error = None
+    try:
+        model = load_model()
+        nutrition_df = load_nutrition()
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        model = None
+        nutrition_df = None
+        startup_error = str(exc)
+        print(f"⚠️ Startup warning: {exc}")
+        return
+
     print(f"✅ Model loaded on {device}, {len(CLASS_NAMES)} classes, "
           f"{len(nutrition_df)} nutrition entries.")
 
@@ -133,7 +145,12 @@ def serve_dashboard():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "device": str(device), "classes": len(CLASS_NAMES)}
+    return {
+        "status": "ok" if model is not None else "degraded",
+        "device": str(device),
+        "classes": len(CLASS_NAMES),
+        "startup_error": startup_error,
+    }
 
 
 def check_allergies(food_name: str):
@@ -146,14 +163,27 @@ def check_allergies(food_name: str):
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
+    if model is None or nutrition_df is None:
+        raise HTTPException(status_code=503, detail=startup_error or "Model is not ready.")
+
+    if file.content_type and not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
 
     try:
         image_bytes = await file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Could not read the uploaded image.")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Could not read the uploaded file.") from exc
+
+    if len(image_bytes) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="Uploaded file is too large. Please use an image smaller than 5MB.")
+
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image_obj:
+            image_obj.verify()
+        with Image.open(io.BytesIO(image_bytes)) as image_obj:
+            image = image_obj.convert("RGB")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Could not read the uploaded image. Please upload a valid JPG or PNG file.") from exc
 
     input_tensor = preprocess(image).unsqueeze(0).to(device)
 
@@ -189,4 +219,6 @@ async def predict(file: UploadFile = File(...)):
     }
 
 
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+static_dir = os.path.join(BASE_DIR, "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")

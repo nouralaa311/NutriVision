@@ -28,6 +28,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "best_model_resnet50_finetune.pth")
 NUTRITION_CSV = os.path.join(BASE_DIR, "food101_nutrition.csv")
 IMG_SIZE = 224
+MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
 
 CLASS_NAMES = sorted([
     "apple_pie", "baby_back_ribs", "baklava", "beef_carpaccio", "beef_tartare",
@@ -85,6 +86,14 @@ def load_model():
 @st.cache_data
 def load_nutrition():
     return pd.read_csv(NUTRITION_CSV).set_index("class_name")
+
+
+def validate_class_names(nutrition_df: pd.DataFrame) -> None:
+    nutrition_classes = nutrition_df.index.tolist()
+    if len(nutrition_classes) != len(CLASS_NAMES):
+        raise ValueError(f"Nutrition table has {len(nutrition_classes)} rows but expected {len(CLASS_NAMES)}.")
+    if nutrition_classes != CLASS_NAMES:
+        raise ValueError("Nutrition table class names do not match the model class list.")
 
 
 def check_allergies(food_name: str):
@@ -249,18 +258,23 @@ footer, .footnote{font-family:'JetBrains Mono',monospace;font-size:11px;color:va
 """
 st.markdown(clean_html(theme_css), unsafe_allow_html=True)
 
-st.markdown("""
+st.markdown(clean_html("""
 <div class="brand"><div class="brand-mark"></div>NutriVision</div>
 <div class="status-pill"><span class="dot"></span>MODEL: RESNET50-FT · READY</div>
-""", unsafe_allow_html=True)
+"""), unsafe_allow_html=True)
 
 
 try:
-    model = load_model()
     nutrition_df = load_nutrition()
+    validate_class_names(nutrition_df)
 except FileNotFoundError as e:
     st.error(f"⚠️ {e}\n\nMake sure `{MODEL_PATH}` and `{NUTRITION_CSV}` are in this folder.")
     st.stop()
+except ValueError as e:
+    st.error(f"⚠️ {e}")
+    st.stop()
+
+model = None
 
 if "goal" not in st.session_state:
     st.session_state.goal = "maintain"
@@ -268,9 +282,26 @@ if "goal" not in st.session_state:
 uploaded_file = st.file_uploader("Upload a food photo", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
 
 if uploaded_file is not None:
-    image = Image.open(uploaded_file).convert("RGB")
+    if uploaded_file.size and uploaded_file.size > MAX_FILE_SIZE_BYTES:
+        st.error("⚠️ Uploaded file is too large. Please use an image smaller than 5MB.")
+        st.stop()
 
-    with st.spinner("Analyzing…"):
+    if uploaded_file.type and not uploaded_file.type.startswith("image/"):
+        st.error("⚠️ Uploaded file must be an image.")
+        st.stop()
+
+    try:
+        image_bytes = uploaded_file.getvalue()
+        with Image.open(io.BytesIO(image_bytes)) as image_obj:
+            image_obj.verify()
+        with Image.open(io.BytesIO(image_bytes)) as image_obj:
+            image = image_obj.convert("RGB")
+    except Exception:
+        st.error("⚠️ Could not read the uploaded image. Please upload a valid JPG or PNG file.")
+        st.stop()
+
+    with st.spinner("Loading model and analyzing…"):
+        model = load_model()
         input_tensor = preprocess(image).unsqueeze(0).to(device)
         with torch.no_grad():
             outputs = model(input_tensor)
@@ -311,7 +342,7 @@ if uploaded_file is not None:
     st.markdown(clean_html(hero_html), unsafe_allow_html=True)
 
     # ---------------- Macro rings ----------------
-    st.markdown('<div class="section-label">Nutrition — per 100g</div>', unsafe_allow_html=True)
+    st.markdown(clean_html('<div class="section-label">Nutrition — per 100g</div>'), unsafe_allow_html=True)
 
     kcal_from_macros = row["protein_g"] * 4 + row["carbs_g"] * 4 + row["fat_g"] * 9
     protein_pct = round(row["protein_g"] * 4 / kcal_from_macros * 100) if kcal_from_macros else 0
@@ -344,7 +375,7 @@ if uploaded_file is not None:
     col_rec, col_allergy = st.columns(2)
 
     with col_rec:
-        st.markdown('<div class="panel"><h3>Recommendation</h3>', unsafe_allow_html=True)
+        st.markdown(clean_html('<div class="panel"><h3>Recommendation</h3>'), unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         goal_options = [("maintain", "Maintain"), ("lose_weight", "Lose weight"), ("gain_muscle", "Gain muscle")]
         for col, (key, label) in zip([c1, c2, c3], goal_options):
@@ -357,7 +388,7 @@ if uploaded_file is not None:
         flags = check_allergies(predicted_class)
         rec_lines = get_recommendation_lines(row, st.session_state.goal, flags)
         rec_html = "".join(f'<div class="rec-line"><span>{icon}</span><span>{text}</span></div>' for icon, text in rec_lines)
-        st.markdown(rec_html + "</div>", unsafe_allow_html=True)
+        st.markdown(clean_html(rec_html + "</div>"), unsafe_allow_html=True)
 
     with col_allergy:
         allergy_html = "".join(
@@ -365,9 +396,9 @@ if uploaded_file is not None:
             f'<span>{label}</span><span class="tag">{"FLAGGED" if key in flags else "CLEAR"}</span></div>'
             for key, label in ALLERGY_LABELS.items()
         )
-        st.markdown(f'<div class="panel"><h3>Allergy check</h3>{allergy_html}</div>', unsafe_allow_html=True)
+        st.markdown(clean_html(f'<div class="panel"><h3>Allergy check</h3>{allergy_html}</div>'), unsafe_allow_html=True)
 
 else:
-    st.markdown('<div class="panel" style="text-align:center;color:var(--muted);">Upload a food photo above to get started.</div>', unsafe_allow_html=True)
+    st.markdown(clean_html('<div class="panel" style="text-align:center;color:var(--muted);">Upload a food photo above to get started.</div>'), unsafe_allow_html=True)
 
-st.markdown('<div class="footnote">NUTRIVISION · FOOD-101 · 101 CLASSES · TOP-1 80.8% / TOP-5 94.7%</div>', unsafe_allow_html=True)
+st.markdown(clean_html('<div class="footnote">NUTRIVISION · FOOD-101 · 101 CLASSES · TOP-1 80.8% / TOP-5 94.7%</div>'), unsafe_allow_html=True)
